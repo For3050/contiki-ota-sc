@@ -77,7 +77,6 @@ unsigned short node_id = 0;
 /** \brief Board specific iniatialisation */
 void board_init(void);
 /*---------------------------------------------------------------------------*/
-#if 0 
 static void
 fade(unsigned char l)
 {
@@ -96,7 +95,7 @@ fade(unsigned char l)
     }
   }
 }
-#endif //comment by pengfei
+#endif
 /*---------------------------------------------------------------------------*/
 static void
 set_rf_params(void)
@@ -159,7 +158,7 @@ main(void)
   /* Set the LF XOSC as the LF system clock source */
   oscillators_select_lf_xosc();
 
-  //lpm_init();  //comment by pengfei
+  lpm_init(); 
 
   board_init();
 
@@ -175,7 +174,7 @@ main(void)
    */
   ti_lib_pwr_ctrl_io_freeze_disable();
 
-  //fade(LEDS_RED); //pf
+  fade(LEDS_RED); 
 
   ti_lib_int_master_enable();
 
@@ -183,10 +182,10 @@ main(void)
   clock_init();
   rtimer_init();
 
-  //watchdog_init();
+  watchdog_init();
   process_init();
 
-  //random_init(0x1234);
+  random_init(0x1234);
 
   /* Character I/O Initialisation */
 #if CC26XX_UART_CONF_ENABLE
@@ -194,7 +193,6 @@ main(void)
 #endif
 
   serial_line_init();
-#if 0
   printf("Starting " CONTIKI_VERSION_STRING "\n");
   printf("With DriverLib v%u.%u\n", DRIVERLIB_RELEASE_GROUP,
          DRIVERLIB_RELEASE_BUILD);
@@ -204,7 +202,6 @@ main(void)
          ti_lib_chipinfo_chip_family_is_cc13xx() == true ? "Yes" : "No",
          ti_lib_chipinfo_supports_ble() == true ? "Yes" : "No",
          ti_lib_chipinfo_supports_proprietary() == true ? "Yes" : "No");
-#endif  //comment by pf
 
   process_start(&etimer_process, NULL);
   ctimer_init();
@@ -212,7 +209,7 @@ main(void)
   energest_init();
   ENERGEST_ON(ENERGEST_TYPE_CPU);
 
-  //fade(LEDS_YELLOW);
+  fade(LEDS_YELLOW);
 
   printf(" Net: ");
   printf("%s\n", NETSTACK_NETWORK.name);
@@ -231,32 +228,31 @@ main(void)
 
   set_rf_params();
 
-//#if NETSTACK_CONF_WITH_IPV6
-#if 0
+#if NETSTACK_CONF_WITH_IPV6
   memcpy(&uip_lladdr.addr, &linkaddr_node_addr, sizeof(uip_lladdr.addr));
   queuebuf_init();
   process_start(&tcpip_process, NULL);
-#endif  //comment by pf
+#endif  
 
 
-  //fade(LEDS_GREEN);
+  fade(LEDS_GREEN);
 
-  //process_start(&sensors_process, NULL);
+  process_start(&sensors_process, NULL);
   autostart_start(autostart_processes);
 
-  //watchdog_start();
+  watchdog_start();
 
-  //fade(LEDS_ORANGE);
+  fade(LEDS_ORANGE);
 
   while(1) {
     uint8_t r;
     do {
       r = process_run();
-      //watchdog_periodic();
+      watchdog_periodic();
     } while(r > 0);
 
     /* Drop to some low power mode */
-    //lpm_drop();
+    lpm_drop();
   }
 }
 /*---------------------------------------------------------------------------*/

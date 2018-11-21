@@ -79,9 +79,6 @@
 
 /* Notify various examples that we have LEDs */
 #define PLATFORM_HAS_LEDS        1
-
-#undef BOARD_CONF_DEBUGGER_DEVPACK
-#define BOARD_CONF_DEBUGGER_DEVPACK 0
 /** @} */
 /*---------------------------------------------------------------------------*/
 /**
@@ -90,10 +87,8 @@
  * Those values are not meant to be modified by the user
  * @{
  */
-//#define BOARD_IOID_LED_1          IOID_10
-#define BOARD_IOID_LED_1          IOID_22
-//#define BOARD_IOID_LED_2          IOID_15
-#define BOARD_IOID_LED_2          IOID_16
+#define BOARD_IOID_LED_1          IOID_10
+#define BOARD_IOID_LED_2          IOID_15
 #define BOARD_LED_1               (1 << BOARD_IOID_LED_1)
 #define BOARD_LED_2               (1 << BOARD_IOID_LED_2)
 #define BOARD_LED_ALL             (BOARD_LED_1 | BOARD_LED_2)
@@ -112,10 +107,8 @@
 #define BOARD_IOID_UART_RX        BOARD_IOID_DP4_UARTRX
 #define BOARD_IOID_UART_TX        BOARD_IOID_DP5_UARTTX
 #else
-//#define BOARD_IOID_UART_RX        IOID_17
-//#define BOARD_IOID_UART_TX        IOID_16
-#define BOARD_IOID_UART_RX        IOID_15
-#define BOARD_IOID_UART_TX        IOID_18
+#define BOARD_IOID_UART_RX        IOID_17
+#define BOARD_IOID_UART_TX        IOID_16
 #endif
 
 #define BOARD_IOID_UART_CTS       IOID_UNUSED
@@ -132,12 +125,10 @@
  * Those values are not meant to be modified by the user
  * @{
  */
-#if 0
 #define BOARD_IOID_KEY_LEFT       IOID_0
 #define BOARD_IOID_KEY_RIGHT      IOID_4
 #define BOARD_KEY_LEFT            (1 << BOARD_IOID_KEY_LEFT)
 #define BOARD_KEY_RIGHT           (1 << BOARD_IOID_KEY_RIGHT)
-#endif
 /** @} */
 /*---------------------------------------------------------------------------*/
 /**
@@ -148,24 +139,19 @@
  */
 #define BOARD_IOID_SPI_SCK        IOID_17
 #define BOARD_IOID_SPI_MOSI       IOID_19
-//#define BOARD_IOID_SPI_MISO       IOID_18
-#define BOARD_IOID_SPI_MISO       IOID_21
+#define BOARD_IOID_SPI_MISO       IOID_18
 #define BOARD_SPI_SCK             (1 << BOARD_IOID_SPI_SCK)
 #define BOARD_SPI_MOSI            (1 << BOARD_IOID_SPI_MOSI)
 #define BOARD_SPI_MISO            (1 << BOARD_IOID_SPI_MISO)
 /** @} */
 /*---------------------------------------------------------------------------*/
-#if 0
 /**
  * \name Buzzer configuration
  * @{
  */
-//#define BOARD_IOID_BUZZER         IOID_21 /**< Buzzer Pin */
-#define BOARD_IOID_BUZZER         IOID_UNUSED /**< Buzzer Pin */
+#define BOARD_IOID_BUZZER         IOID_21 /**< Buzzer Pin */
 /** @} */
-#endif
 /*---------------------------------------------------------------------------*/
-#if 0
 /**
  * \name Reed Relay IOID mapping
  *
@@ -174,7 +160,6 @@
  */
 #define BOARD_IOID_REED_RELAY     IOID_3
 /** @} */
-#endif
 /*---------------------------------------------------------------------------*/
 /**
  * \name External flash IOID mapping
@@ -195,14 +180,10 @@
  */
 #define BOARD_IOID_SDA            IOID_5 /**< Interface 0 SDA: All sensors bar MPU */
 #define BOARD_IOID_SCL            IOID_6 /**< Interface 0 SCL: All sensors bar MPU */
-//#define BOARD_IOID_SDA_HP         IOID_8 /**< Interface 1 SDA: MPU */
-//#define BOARD_IOID_SCL_HP         IOID_9 /**< Interface 1 SCL: MPU */
-#define BOARD_IOID_SPI_UART         IOID_9 //pull up to disable another spi_device on smartcontroller.
-#define BOARD_IOID_SDA_HP         IOID_UNUSED /**< Interface 1 SDA: MPU */
-#define BOARD_IOID_SCL_HP         IOID_UNUSED /**< Interface 1 SCL: MPU */
+#define BOARD_IOID_SDA_HP         IOID_8 /**< Interface 1 SDA: MPU */
+#define BOARD_IOID_SCL_HP         IOID_9 /**< Interface 1 SCL: MPU */
 /** @} */
 /*---------------------------------------------------------------------------*/
-#if 0
 /**
  * \brief MPU IOID mappings
  *
@@ -214,7 +195,6 @@
 #define BOARD_MPU_INT             (1 << BOARD_IOID_MPU_INT)
 #define BOARD_MPU_POWER           (1 << BOARD_IOID_MPU_POWER)
 /** @} */
-#endif
 /*---------------------------------------------------------------------------*/
 /**
  * \brief Board devpack IOID mappings (LCD etc.)
@@ -222,21 +202,18 @@
  * Those values are not meant to be modified by the user
  * @{
  */
-#if 0
-//#define BOARD_IOID_AUDIOFS_TDO        IOID_16
+#define BOARD_IOID_AUDIOFS_TDO        IOID_16
 #define BOARD_IOID_DEVPACK_CS         IOID_20
-//#define BOARD_IOID_DEVPK_LCD_EXTCOMIN IOID_22
-//#define BOARD_IOID_AUDIODO            IOID_22
+#define BOARD_IOID_DEVPK_LCD_EXTCOMIN IOID_22
+#define BOARD_IOID_AUDIODO            IOID_22
 #define BOARD_IOID_DP2                IOID_23
 #define BOARD_IOID_DP1                IOID_24
 #define BOARD_IOID_DP0                IOID_25
 #define BOARD_IOID_DP3                IOID_27
 #define BOARD_IOID_DEVPK_ID           IOID_30
 #define BOARD_DEVPACK_CS              (1 << BOARD_IOID_DEVPACK_CS)
-#endif
 /** @} */
 /*---------------------------------------------------------------------------*/
-#if 0
 /**
  * \brief TMP Sensor
  *
@@ -245,9 +222,7 @@
  */
 #define BOARD_IOID_TMP_RDY          IOID_1
 /** @} */
-#endif
 /*---------------------------------------------------------------------------*/
-#if 0
 /**
  * \brief Digital Microphone
  *
@@ -258,7 +233,6 @@
 #define BOARD_IOID_AUDIO_DI         IOID_2
 #define BOARD_IOID_AUDIO_CLK        IOID_11
 /** @} */
-#endif
 /*---------------------------------------------------------------------------*/
 /**
  * \name Device string used on startup

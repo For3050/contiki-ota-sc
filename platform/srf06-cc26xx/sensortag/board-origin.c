@@ -59,8 +59,6 @@ power_domains_on(void)
         != PRCM_DOMAIN_POWER_ON));
 }
 /*---------------------------------------------------------------------------*/
-//comment by pf
-#if 0
 static void
 lpm_wakeup_handler(void)
 {
@@ -93,13 +91,10 @@ shutdown_handler(uint8_t mode)
  */
 LPM_MODULE(sensortag_module, NULL, shutdown_handler, lpm_wakeup_handler,
            LPM_DOMAIN_NONE);
-#endif
 /*---------------------------------------------------------------------------*/
 static void
 configure_unused_pins(void)
 {
-//comment by pf
-#if 0
   /* DP[0..3] */
   ti_lib_ioc_pin_type_gpio_input(BOARD_IOID_DP0);
   ti_lib_ioc_io_port_pull_set(BOARD_IOID_DP0, IOC_IOPULL_DOWN);
@@ -128,16 +123,11 @@ configure_unused_pins(void)
   /* UART over Devpack - TX only (ToDo: Map all UART pins to Debugger) */
   ti_lib_ioc_pin_type_gpio_input(BOARD_IOID_DP5_UARTTX);
   ti_lib_ioc_io_port_pull_set(BOARD_IOID_DP5_UARTTX, IOC_IOPULL_DOWN);
-#endif
 }
 /*---------------------------------------------------------------------------*/
 void
 board_init()
 {
-  //add by pf
-  ti_lib_ioc_pin_type_gpio_output(BOARD_IOID_SPI_UART);
-  ti_lib_gpio_set_dio(BOARD_IOID_SPI_UART);
-
   /* Disable global interrupts */
   bool int_disabled = ti_lib_int_master_disable();
 
@@ -150,16 +140,15 @@ board_init()
   ti_lib_prcm_load_set();
   while(!ti_lib_prcm_load_get());
 
-  //comment by pf
   /* I2C controller */
-  //board_i2c_wakeup();
+  board_i2c_wakeup();
 
-  //buzzer_init();
+  buzzer_init();
 
   /* Make sure the external flash is in the lower power mode */
   ext_flash_init();
 
-  //lpm_register_module(&sensortag_module);
+  lpm_register_module(&sensortag_module);
 
   /* For unsupported peripherals, select a default pin configuration */
   configure_unused_pins();
