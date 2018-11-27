@@ -1,198 +1,294 @@
-/** @file   ota-download.c
- *  @brief  OTA Image Download Mechanism
+/**
+ * \file
+ *         ota-download.c
+ * \file   
+ * 	       New OTA Image Download Mechanism
+ * \author
+ *         pf
  */
 
 #include "ota-download.h"
 #include "ti-lib.h"
 #include "contiki.h"
-#include <stdio.h>
 #include "net/rime/rime.h"
+#include <stdio.h>
 
+#include "process.h"
 #include "ota.h"
 
-/*******************************************************************************/
-#if 0
-#if OTA_DEBUG
-  #include <stdio.h>
-  #define PRINTF(...) printf(__VA_ARGS__)
-#else
-  #define PRINTF(...)
-#endif
-#endif
 
-#define RECV_BUF_SIZE 140
-#define SEND_BUF_SIZE 16
+#define MAX_RETRANSMISSIONS 4
+#define FUNC_ACK 0x2
+#define PAYLOAD_SIZE 64
 
-#define MAX_RETRANSMISSIONS 2
 
-#define OTA_START_COMMAND 0X01
-#define OTA_SEND_COMMAND 0X02
-#define OTA_REQUEST_COMMAND 0X03
+static uint8_t server_addr[2] = {0x0,};
 
-/*******************************************************************************/
-static uint8_t recv_buf[RECV_BUF_SIZE] = {0x00, };
-static uint8_t send_buf[SEND_BUF_SIZE] = {0x00, };
+static uint16_t frame_id_saved, frame_id_recieved, total_frame = 0x0;
+static uint8_t length = 0x0;
 
-static uint8_t payload_size = 0x00;
-static uint32_t firmware_size = 0x00;
+struct FRAME
+{
+	uint8_t func;
+	uint16_t frame_id;
+	uint16_t total_frame;
+	uint8_t length;
+	uint8_t payload[PAYLOAD_SIZE];
+	uint16_t crc;
+};
 
-static uint8_t server_addr[2] = {0x00, };
+struct ACK
+{
+	uint8_t func;
+	uint16_t frame_id;
+	uint16_t crc;
+};
 
-static uint32_t rime_request_count = 0;
+static struct ACK ack;
+static struct FRAME *frame_ptr;
 
-/*******************************************************************************/
-PROCESS(ota_download_th, "OTA Download Agent");
-PROCESS(ota_rcdownload_thread, "OTA RCDownload Agent");
+process_event_t ota_done_event;
+process_event_t ota_error_event;
+
+PROCESS(ota_download_th, "ota client process");
+PROCESS(ota_error_handle_process, "ota error handle process");
 struct process* ota_download_th_p = &ota_download_th;
-struct process* ota_rcdownload_th_p = &ota_rcdownload_thread;
 
-/*******************************************************************************/
-#if 0
+/*---------------------------------------------------------------------------*/
 static void
 reset_ota_buffer() {
-  uint16_t n;
-  for (n=0; n<OTA_BUFFER_SIZE; n++)
-  {
-    ota_buffer[ n ] = 0xff;
-  }
+	uint16_t n;
+	for (n=0; n<OTA_BUFFER_SIZE; n++)
+	{
+		ota_buffer[ n ] = 0xff;
+	}
 }
-#endif
-/*******************************************************************************/
-static void broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from)
-{
-	static uint8_t len = 0x0;
 
-	printf("OTA command received!\n");
-	printf("broadcast message received from %d.%d: '%s'\n",
-			from->u8[0], from->u8[1], (char*)packetbuf_dataptr());
+
+/*---------------------------------------------------------------------------*/
+	static void
+broadcast_recv(struct broadcast_conn *c, const linkaddr_t *from)
+{
+	static uint8_t i = 0;
+
+	printf("broadcast message received from %d.%d.\n",
+			from->u8[0], from->u8[1]);
+
 	server_addr[0] = from->u8[0];
 	server_addr[1] = from->u8[1];
 
-	/* 1,OTA command parse */
-	memset(recv_buf, 0xff, sizeof(recv_buf));
-	len = packetbuf_copyto(recv_buf);
-	if((recv_buf[0] == OTA_START_COMMAND) && (recv_buf[1] == 0x01)) 
-	{
-		payload_size = recv_buf[2];
-		firmware_size = (recv_buf[3]<<24)||(recv_buf[4]<<16)
-						||(recv_buf[5]<<8)||(recv_buf[6]);
+	frame_ptr = (struct FRAME*)packetbuf_dataptr();
 
-		if(!process_is_running(&ota_rcdownload_thread))
+	total_frame = (frame_ptr->total_frame);
+	frame_id_recieved = (frame_ptr->frame_id);
+	length = (frame_ptr->length);
+
+if((frame_id_recieved > frame_id_saved) && frame_id_recieved <= total_frame)
+{
+	if((frame_id_recieved - frame_id_saved) == 1)
+	{
+
+		printf("%d,good new frame!\n", frame_id_recieved);
+
+		frame_id_saved = frame_id_recieved;
+
+		length = (frame_ptr->length);
+		printf("Downloaded %u frames\tinclude (%#x) bytes\n", frame_id_recieved, frame_ptr->length);
+		for(i = 0; i < length; i++)
 		{
-			process_start(&ota_rcdownload_thread, NULL);
-			printf("ota_rcdownload_thread is started!\n");
+			ota_buffer[ img_req_position++ ] = frame_ptr->payload[i];
+		}
+
+		if(metadata_received)
+		{
+			int percent = 10000.0 * ((float)( (frame_id_saved*PAYLOAD_SIZE) + img_req_position) / (float)(new_firmware_metadata.size + OTA_METADATA_SPACE));
+			printf("\t%u.%u%%\n", percent/100, (percent - ((percent/100)*100)));
+		}
+		else if(img_req_position >= OTA_METADATA_LENGTH)
+		{
+			printf("\n\nDownload metadata acquired:\n");
+			printf("==============================================\n");
+			//  If we don't have metadata yet, get it from the first page
+			//  (1) Extract metadata from the ota_buffer
+			memcpy( &new_firmware_metadata, ota_buffer, OTA_METADATA_LENGTH );
+			print_metadata( &new_firmware_metadata );
+			printf("\n");
+			metadata_received = true;
+
+			//  (2) Check to see if we have any OTA slots already containing
+			//      firmware of the same version number as the metadata has.
+			active_ota_download_slot = find_matching_ota_slot( new_firmware_metadata.version );
+			if ( active_ota_download_slot == -1 ) {
+				//  We don't already have a copy of this firmware version, let's download
+				//  to an empty OTA slot!
+				active_ota_download_slot = find_empty_ota_slot();
+				if ( !active_ota_download_slot ) {
+					active_ota_download_slot = 1;
+				}
+			}
+			printf("Downloading OTA update to OTA slot #%i.\n", active_ota_download_slot);
+
+			//  (3) Erase the destination OTA download slot
+			while( erase_ota_image( active_ota_download_slot ) );
+
+			printf("==============================================\n\n");
+			//  (4) Save the latest ota_buffer to flash if it's full.
+			if ( img_req_position >= OTA_BUFFER_SIZE) {
+				printf("==============================================\n");
+				while( store_firmware_data( ( (frame_id_saved*PAYLOAD_SIZE) + (ota_images[active_ota_download_slot-1] << 12)), ota_buffer, OTA_BUFFER_SIZE) );
+				//ota_bytes_saved += img_req_position;
+				//frame_id_saved++;
+				img_req_position = 0;
+				reset_ota_buffer();
+				printf("==============================================\n\n");
+			}
+		}
+
+		if(frame_id_saved == total_frame)
+		{
+			//ready to reboot
+			process_post(&ota_download_th, ota_done_event, NULL);
 		}
 	}
+	else
+	{
+		printf("\nerror frame!\n");
+		process_post(&ota_error_handle_process, PROCESS_EVENT_CONTINUE, NULL);
 
+		printf("need frame id = %d\t, received frame id = %d\n", 
+				frame_id_saved + 1,
+				frame_ptr->frame_id);
+	}
+}
+else 
+{
+	printf("\nframe has already received, discast!\n");
+	printf("now frame id = %d\t, received frame id = %d\n", 
+			frame_id_saved,
+			frame_ptr->frame_id); 
 }
 
-static const struct broadcast_callbacks broadcast_call = {broadcast_recv, };
+
+}
+static const struct broadcast_callbacks broadcast_call = {broadcast_recv};
 static struct broadcast_conn broadcast;
-/*******************************************************************************/
+
+/*---------------------------------------------------------------------------*/
 PROCESS_THREAD(ota_download_th, ev, data)
 {
 	static struct etimer et;
+
+	//(1)Initialize Rime
 	PROCESS_EXITHANDLER(broadcast_close(&broadcast);)
-	PROCESS_BEGIN();
-	broadcast_open(&broadcast, 111, &broadcast_call);
-	printf("ota_download_th is running!\n");
-	while(1)
-	{
-		etimer_set(&et, CLOCK_SECOND*2);
-		PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
-		packetbuf_copyfrom("hello", 6);
-		broadcast_send(&broadcast);
-		printf("broadcast message sent!\n");
-	}
-	PROCESS_END();
-}
-/*******************************************************************************/
-static void recv_runicast(struct runicast_conn *c, const linkaddr_t *from, uint8_t seqno)
-{
-	static uint32_t request_count = 0x00;
-	static uint8_t len = 0x0;
+		PROCESS_BEGIN();
+	process_start(&ota_error_handle_process, NULL);
 
-	printf("runicast message received from %d.%d, seqno %d\n",
-			from->u8[0], from->u8[1], seqno);
-	/* 3,Parse and flash OTA data from server! */
-	memset(recv_buf, 0xff, sizeof(recv_buf));
-	len = packetbuf_copyto(recv_buf);
+	broadcast_open(&broadcast, 129, &broadcast_call);
 
-	request_count = (recv_buf[4]<<24)||(recv_buf[5]<<16)
-					||(recv_buf[6]<<8)||(recv_buf[7]<<0);
-
-	if(recv_buf[0] == OTA_SEND_COMMAND)
-	{
-		while(store_firmware_data(request_count*128, recv_buf+8, 128));
-		printf("stored data to flash!\n");
-	}
-
-}
-
-/*******************************************************************************/
-static const struct runicast_callbacks runicast_callbacks = {recv_runicast, };
-static struct runicast_conn runicast;
-/*******************************************************************************/
-PROCESS_THREAD(ota_rcdownload_thread, ev, data)
-{
-	static struct etimer et;
-	PROCESS_EXITHANDLER(runicast_close(&runicast);)
-	PROCESS_BEGIN();
-	runicast_open(&runicast, 123, &runicast_callbacks);
-
-	if(linkaddr_node_addr.u8[0] == 1 &&
-			linkaddr_node_addr.u8[1] == 0)
-	{
-		PROCESS_WAIT_EVENT_UNTIL(0);
-	}
-	printf("OTA is running!\n");
-
+	//(2)Initialize download parameters
+	reset_ota_buffer();
 	metadata_received = false;
 	ota_download_active = true;
 
-	rime_request_count = 0;
 
-	/* 2,send OTA_REQUEST_COMMAND to server */
-	while(ota_download_active)
-	{
-		etimer_set(&et, CLOCK_SECOND*1);
+#if 0
+	while(1) {
+		etimer_set(&et, CLOCK_SECOND * 1);
 		PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
-		printf("------rime request %lu started-----\n", rime_request_count);
-
-		linkaddr_t recv;
-		memset(send_buf, 0, sizeof(send_buf));
-		send_buf[0] = OTA_REQUEST_COMMAND;
-		send_buf[1] = (rime_request_count>>24)&0xff;
-		send_buf[2] = (rime_request_count>>16)&0xff;
-		send_buf[3] = (rime_request_count>>8)&0xff;
-		send_buf[4] = (rime_request_count>>0)&0xff;
-		
-		recv.u8[0] = server_addr[0];
-		recv.u8[1] = server_addr[1];
-
-		runicast_send(&runicast, &recv, MAX_RETRANSMISSIONS);
-		printf("client send request %lu to server!\n", rime_request_count);
-
-		if(rime_request_count >= (firmware_size/payload_size))
-		{
-			etimer_set(&et, CLOCK_SECOND*3);
-			PROCESS_WAIT_EVENT_UNTIL(etimer_expired(&et));
-
-			printf("OTA Finished!\n");
-			ota_download_active = false;
-			break;
-		}
-
-		rime_request_count++;
 	}
 
-	//while(verify_ota_slot(active_ota_download_slot));
-	while(verify_ota_slot(1));
+#endif
 
-	printf("OTA download done, rebooting!\n");
-	ti_lib_sys_ctrl_system_reset();
+	//ready to reboot
+		PROCESS_WAIT_EVENT_UNTIL(ev == ota_done_event);
+  //  (5) Save the last ota_buffer!  This may not happen in the firmware_chunk_handler
+  //      if the last ota_buffer wasn't totally full, as img_req_position
+  //      will never increment to OTA_BUFFER_SIZE.
+  printf("==============================================\n");
+  while( store_firmware_data( ( (frame_id_saved*PAYLOAD_SIZE) + (ota_images[active_ota_download_slot-1] << 12)), ota_buffer, OTA_BUFFER_SIZE ) );
+  //ota_bytes_saved += img_req_position;
+  printf("==============================================\n\n");
+
+  //  (6) Recompute the CRC16 algorithm over the received data.  This value is
+  //      called the "CRC Shadow." If it doesn't match the CRC value in the
+  //      metadata, our download got messed up somewhere along the way!
+  while( verify_ota_slot( active_ota_download_slot ) );
+
+  //  (7) Reboot!
+  printf("-----OTA download done, rebooting!-----\n");
+  ti_lib_sys_ctrl_system_reset();
+
 	PROCESS_END();
 }
+
+
+/*---------------------------------------------------------------------------*/
+	static void
+recv_runicast(struct runicast_conn *c, const linkaddr_t *from, uint8_t seqno)
+{
+
+	printf("runicast message received from %d.%d, seqno %d\n",
+			from->u8[0], from->u8[1], seqno);
+}
+static const struct runicast_callbacks runicast_callbacks = {recv_runicast,};
+static struct runicast_conn runicast;
+/*---------------------------------------------------------------------------*/
+PROCESS_THREAD(ota_error_handle_process, ev, data)
+{
+	PROCESS_EXITHANDLER(runicast_close(&runicast);)
+
+		PROCESS_BEGIN();
+
+	runicast_open(&runicast, 144, &runicast_callbacks);
+	/* Receiver node: do nothing */
+	if(linkaddr_node_addr.u8[0] == 1 &&
+			linkaddr_node_addr.u8[1] == 0) {
+		PROCESS_WAIT_EVENT_UNTIL(0);
+	}
+
+	while(1) {
+
+		PROCESS_WAIT_EVENT_UNTIL(ev == ota_error_event);
+
+		if(!runicast_is_transmitting(&runicast)) {
+			linkaddr_t recv;
+
+			(ack.func) = FUNC_ACK;
+			(ack.frame_id) = (frame_id_saved+1);
+			(ack.crc) = 0xfeed;
+
+			packetbuf_copyfrom(&ack, sizeof(struct ACK));
+			recv.u8[0] = server_addr[0];
+			recv.u8[1] = server_addr[1];
+
+			printf("%u.%u: sending runicast to address %u.%u\n",
+					linkaddr_node_addr.u8[0],
+					linkaddr_node_addr.u8[1],
+					recv.u8[0],
+					recv.u8[1]);
+
+			runicast_send(&runicast, &recv, MAX_RETRANSMISSIONS);
+		}
+	}
+
+	PROCESS_END();
+}
+/*---------------------------------------------------------------------------*/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
