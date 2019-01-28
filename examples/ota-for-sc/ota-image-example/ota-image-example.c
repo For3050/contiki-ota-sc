@@ -62,7 +62,8 @@ PROCESS_THREAD(blinker_test_loop, ev, data)
   //	(2)	Start blinking green LED
   leds_init();
   leds_on(BLINKER_PIN);
-  printf("I am the golden Image\n");
+  //printf("I am the golden Image\n");
+  printf("I am the ota updated Image\n");
 #else
   printf("Platform does not support LED. Unique ID: %u\n", OTA_EXAMPLE_UNIQUE_ID);
 #endif

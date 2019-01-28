@@ -26,8 +26,8 @@ ota-image-example: generate-metadata
 		make clean;								\
 		make ota-image-example BOARD=$(BOARD); 		\
 	printf "\nAdding metadata to OTA Example Image\n";
-	./generate-metadata ota-image-example/ota-image-example.bin 0x0 0xabcd1234 1 # create golden image
-	#./generate-metadata ota-image-example/ota-image-example.bin 0x1 0xdeadbeef 0 # create ota update
+	#./generate-metadata ota-image-example/ota-image-example.bin 0x0 0xabcd1234 1 # create golden image
+	./generate-metadata ota-image-example/ota-image-example.bin 0x1 0xdeadbeef 0 # create ota update
 	srec_cat firmware-metadata.bin -binary ota-image-example/ota-image-example.bin -binary -offset 0x100 -o ota-image.bin -binary
 
 master-hex: bootloader ota-image-example
